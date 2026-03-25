@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subbuteo Match Timer - Club Edition v4</title>
+    <style>
+        :root {
+            --pitch-green: #1a4332;
+            --line-white: #ffffff;
+            --action-orange: #ff8500;
+            --timer-yellow: #f8e71c;
+        }
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background-color: var(--pitch-green);
+            background-image: repeating-linear-gradient(90deg, #1e4d39, #1e4d39 100px, #245a43 100px, #245a43 200px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .club-name {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 3px 3px 0px #000;
+        }
+        .timer-container {
+            position: relative;
+            background: rgba(0,0,0,0.9);
+            padding: 40px 80px;
+            border-radius: 30px;
+            border: 8px solid #444;
+            box-shadow: 0 0 100px rgba(0,0,0,0.8);
+            text-align: center;
+        }
+        .timer-display {
+            font-size: 21rem; 
+            font-weight: 900;
+            color: var(--timer-yellow);
+            line-height: 0.9;
+            font-family: 'Consolas', monospace;
+        }
+        .preparing {
+            animation: blink 0.5s infinite;
+            color: #ff4444;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .btn {
+            padding: 20px 50px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 15px;
+            text-transform: uppercase;
+            box-shadow: 0 5px 0 #000;
+            transition: 0.1s;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+        .btn-start { background: var(--action-orange); color: white; }
+        .btn-stop { background: #d00000; color: white; }
+        
+        .duration-select {
+            background: #333;
+            color: var(--timer-yellow);
+            border: 2px solid #555;
+            padding: 10px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            font-family: 'Consolas', monospace;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .pitch-view {
+            display: flex;
+            align-items: flex-end;
+            gap: 150px;
+            margin-top: 40px;
+        }
+        .player {
+            width: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .head { width: 15px; height: 15px; background: #ffdbac; border-radius: 50%; }
+        .torso { width: 30px; height: 35px; border-radius: 10px 10px 0 0; }
+        .shorts { width: 32px; height: 15px; background: white; }
+        .base { width: 60px; height: 25px; border-radius: 50% 50% 10px 10px; border-bottom: 5px solid #222; }
+        
+        .red-team .torso { background: #d00000; }
+        .red-team .base { background: #800000; }
+        .blue-team .torso { background: #0056b3; }
+        .blue-team .base { background: #002d5f; }
+
+        .ball { font-size: 3rem; margin-bottom: 5px; animation: bounce 2s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+
+        .credentials {
+            position: absolute;
+            bottom: 20px;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.5);
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="club-name" id="clubName" contenteditable="true">FLAMING FLICKERS</div>
+
+    <div class="timer-container">
+        <div class="timer-display" id="display">15:00</div>
+        
+        <div class="controls">
+            <button class="btn btn-start" id="startBtn" onclick="initStartSequence()">KICK OFF</button>
+            <button class="btn btn-stop" id="stopBtn" onclick="stopTimer()" style="display:none;">PAUSE</button>
+            
+            <select class="duration-select" id="durationSetting" onchange="changeDuration()">
+                <option value="15">15 MIN</option>
+                <option value="12">12 MIN</option>
+                <option value="10">10 MIN</option>
+                <option value="5">5 MIN (ET)</option>
+                <option value="4">4 MIN (ET2)</option>
+            </select>
+
+            <button class="btn" onclick="resetTimer()" style="background:#555; color:white; font-size: 1rem; padding: 10px 20px;">RESET</button>
+        </div>
+    </div>
+
+    <div class="pitch-view">
+        <div class="player red-team">
+            <div class="head"></div>
+            <div class="torso"></div>
+            <div class="shorts"></div>
+            <div class="base"></div>
+        </div>
+        
+        <div class="ball">⚽</div>
+
+        <div class="player blue-team">
+            <div class="head"></div>
+            <div class="torso"></div>
+            <div class="shorts"></div>
+            <div class="base"></div>
+        </div>
+    </div>
+
+    <div class="credentials">
+        Conceptualized & Developed by <strong>Dr. Chronis Fatouros</strong> | v4.0
+    </div>
+
+    <script>
+        let countdown;
+        let selectedMins = 15;
+        let timeLeft = selectedMins * 60;
+        let isRunning = false;
+        let isPreparing = false;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Λειτουργία για τον ήχο της σφυρίχτρας
+        function playWhistle(times) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            for (let i = 0; i < times; i++) {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator();
+                    const vibrato = audioCtx.createOscillator();
+                    const vibratoGain = audioCtx.createGain();
+                    const mainGain = audioCtx.createGain();
+
+                    vibrato.frequency.value = 45; 
+                    vibratoGain.gain.value = 50; 
+                    osc.frequency.value = 1100; 
+                    
+                    vibrato.connect(vibratoGain);
+                    vibratoGain.connect(osc.frequency);
+                    
+                    mainGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    mainGain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+                    mainGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+                    
+                    osc.connect(mainGain);
+                    mainGain.connect(audioCtx.destination);
+                    
+                    osc.start();
+                    vibrato.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                    vibrato.stop(audioCtx.currentTime + 0.5);
+                }, i * 600);
+            }
+        }
+
+        // Λειτουργία για το "μπιπ" της αντίστροφης μέτρησης
+        function playBeep() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // Λειτουργία ανακοίνωσης (Voice)
+        function speak(text) {
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = text;
+            msg.lang = 'en-US';
+            msg.rate = 1;
+            window.speechSynthesis.speak(msg);
+        }
+
+        function updateDisplay() {
+            let mins = Math.floor(timeLeft / 60);
+            let secs = timeLeft % 60;
+            document.getElementById('display').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function changeDuration() {
+            selectedMins = parseInt(document.getElementById('durationSetting').value);
+            resetTimer();
+        }
+
+        // Νέα λειτουργία: Ακολουθία έναρξης 3 δευτερολέπτων
+        function initStartSequence() {
+            if (isRunning || isPreparing) return;
+            isPreparing = true;
+            
+            let preCount = 3;
+            const display = document.getElementById('display');
+            document.getElementById('startBtn').style.display = 'none';
+            display.classList.add('preparing');
+
+            const prepInterval = setInterval(() => {
+                if (preCount > 0) {
+                    playBeep();
+                    preCount--;
+                } else {
+                    clearInterval(prepInterval);
+                    display.classList.remove('preparing');
+                    isPreparing = false;
+                    startTimer();
+                }
+            }, 1000);
+        }
+
+        function startTimer() {
+            isRunning = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            playWhistle(1);
+
+            countdown = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+
+                // Έλεγχος για υπενθυμίσεις
+                if (timeLeft === 120) {
+                    speak("Two minutes remaining");
+                } else if (timeLeft === 60) {
+                    speak("One minute remaining");
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    isRunning = false;
+                    playWhistle(3);
+                    setTimeout(() => {
+                        alert("HALF TIME / FULL TIME!");
+                        resetTimer();
+                    }, 500);
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(countdown);
+            isRunning = false;
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+
+        function resetTimer() {
+            stopTimer();
+            isPreparing = false;
+            document.getElementById('display').classList.remove('preparing');
+            timeLeft = selectedMins * 60;
+            updateDisplay();
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>
