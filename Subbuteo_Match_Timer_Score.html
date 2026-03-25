@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subbuteo Match Edition v3.1</title>
+    <style>
+        :root {
+            --pitch-green: #1a4332;
+            --timer-yellow: #f8e71c;
+            --home-red: #d00000;
+            --away-blue: #0056b3;
+            --action-orange: #ff8500;
+        }
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background-color: var(--pitch-green);
+            background-image: repeating-linear-gradient(90deg, #1e4d39, #1e4d39 100px, #245a43 100px, #245a43 200px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .club-name {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .scoreboard {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            background: rgba(0,0,0,0.85);
+            padding: 30px;
+            border-radius: 25px;
+            border: 5px solid #444;
+            box-shadow: 0 0 50px rgba(0,0,0,0.6);
+        }
+
+        .team-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 180px;
+        }
+        .team-name {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: #ccc;
+            text-transform: uppercase;
+            border-bottom: 1px dashed #555;
+            padding-bottom: 5px;
+        }
+        .score-number {
+            font-size: 8rem;
+            line-height: 1;
+            margin: 10px 0;
+            font-family: 'Consolas', monospace;
+        }
+        .score-controls button {
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            margin: 0 5px;
+            background: #444;
+            color: white;
+            transition: 0.1s;
+        }
+        .score-controls button:active { transform: scale(0.9); }
+        .score-controls .plus { background: #2d6a4f; }
+        .score-controls .minus { background: #800000; }
+
+        .timer-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+            padding: 0 40px;
+        }
+        
+        /* Duration Selector Style */
+        .duration-select {
+            background: #222;
+            color: var(--timer-yellow);
+            border: 1px solid #555;
+            padding: 5px 15px;
+            font-size: 0.9rem;
+            border-radius: 5px;
+            font-family: 'Consolas', monospace;
+            cursor: pointer;
+            margin-bottom: 10px;
+            outline: none;
+        }
+
+        .timer-display {
+            font-size: 10rem;
+            font-weight: 900;
+            color: var(--timer-yellow);
+            font-family: 'Consolas', monospace;
+            line-height: 1;
+        }
+
+        .btn-main {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            text-transform: uppercase;
+            background: var(--action-orange);
+            color: white;
+            margin-top: 20px;
+            width: 100%;
+            box-shadow: 0 4px 0 #995000;
+        }
+        .btn-main:active { transform: translateY(2px); box-shadow: 0 2px 0 #995000; }
+
+        .pitch-view {
+            display: flex;
+            align-items: flex-end;
+            gap: 100px;
+            margin-top: 30px;
+        }
+        .player { width: 40px; display: flex; flex-direction: column; align-items: center; }
+        .head { width: 10px; height: 10px; background: #ffdbac; border-radius: 50%; }
+        .torso { width: 20px; height: 25px; border-radius: 5px 5px 0 0; }
+        .shorts { width: 22px; height: 10px; background: white; }
+        .base { width: 40px; height: 15px; border-radius: 50% 50% 5px 5px; border-bottom: 3px solid #222; }
+        .red-team .torso { background: var(--home-red); }
+        .red-team .base { background: #800000; }
+        .blue-team .torso { background: var(--away-blue); }
+        .blue-team .base { background: #002d5f; }
+
+        .credentials {
+            margin-top: 40px;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.4);
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="club-name" contenteditable="true">FLAMING FLICKERS - SUBBUTEO ORIGINALE</div>
+
+    <div class="scoreboard">
+        <div class="team-box">
+            <div class="team-name" contenteditable="true">HOME</div>
+            <div class="score-number" id="homeScore">0</div>
+            <div class="score-controls">
+                <button class="minus" onclick="changeScore('home', -1)">-</button>
+                <button class="plus" onclick="changeScore('home', 1)">+</button>
+            </div>
+        </div>
+
+        <div class="timer-box">
+            <select class="duration-select" id="durationSetting" onchange="changeDuration()">
+                <option value="15">15 MINUTES</option>
+                <option value="12">12 MINUTES</option>
+                <option value="10">10 MINUTES</option>
+                <option value="5">5 MIN (ET1)</option>
+                <option value="4">4 MIN (ET2)</option>
+            </select>
+            
+            <div class="timer-display" id="display">15:00</div>
+            
+            <button class="btn-main" id="startBtn" onclick="startTimer()">START</button>
+            <button class="btn-main" id="stopBtn" onclick="stopTimer()" style="display:none; background:#d00000; box-shadow: 0 4px 0 #700000;">PAUSE</button>
+            
+            <button onclick="resetAll()" style="background:none; border:none; color:#666; cursor:pointer; margin-top:10px; font-size: 0.8rem;">Reset Match</button>
+        </div>
+
+        <div class="team-box">
+            <div class="team-name" contenteditable="true">AWAY</div>
+            <div class="score-number" id="awayScore">0</div>
+            <div class="score-controls">
+                <button class="minus" onclick="changeScore('away', -1)">-</button>
+                <button class="plus" onclick="changeScore('away', 1)">+</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pitch-view">
+        <div class="player red-team"><div class="head"></div><div class="torso"></div><div class="shorts"></div><div class="base"></div></div>
+        <div style="font-size:2rem; animation: bounce 2s infinite;">⚽</div>
+        <div class="player blue-team"><div class="head"></div><div class="torso"></div><div class="shorts"></div><div class="base"></div></div>
+    </div>
+
+    <div class="credentials">
+        Conceptualized & Developed by <strong>Dr. Chronis Fatouros</strong>
+    </div>
+
+    <script>
+        let countdown;
+        let selectedMins = 15;
+        let timeLeft = selectedMins * 60;
+        let isRunning = false;
+        let scores = { home: 0, away: 0 };
+        
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playWhistle(times) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            for (let i = 0; i < times; i++) {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator();
+                    const vibrato = audioCtx.createOscillator();
+                    const vibratoGain = audioCtx.createGain();
+                    const mainGain = audioCtx.createGain();
+                    vibrato.frequency.value = 45;
+                    vibratoGain.gain.value = 50;
+                    osc.frequency.value = 1100;
+                    vibrato.connect(vibratoGain);
+                    vibratoGain.connect(osc.frequency);
+                    mainGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    mainGain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+                    mainGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+                    osc.connect(mainGain);
+                    mainGain.connect(audioCtx.destination);
+                    osc.start(); vibrato.start();
+                    osc.stop(audioCtx.currentTime + 0.5); vibrato.stop(audioCtx.currentTime + 0.5);
+                }, i * 600);
+            }
+        }
+
+        function updateDisplay() {
+            let mins = Math.floor(timeLeft / 60);
+            let secs = timeLeft % 60;
+            document.getElementById('display').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function changeDuration() {
+            selectedMins = parseInt(document.getElementById('durationSetting').value);
+            stopTimer(); // Σταματάμε το ρολόι αν τρέχει
+            timeLeft = selectedMins * 60;
+            updateDisplay();
+        }
+
+        function changeScore(team, delta) {
+            scores[team] = Math.max(0, scores[team] + delta);
+            document.getElementById(team + 'Score').innerText = scores[team];
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+            isRunning = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            playWhistle(1);
+
+            countdown = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    isRunning = false;
+                    playWhistle(3);
+                    alert("FULL TIME!");
+                    stopTimer();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(countdown);
+            isRunning = false;
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+
+        function resetAll() {
+            if(!confirm("Επαναφορά αγώνα και σκορ;")) return;
+            stopTimer();
+            timeLeft = selectedMins * 60;
+            scores = { home: 0, away: 0 };
+            document.getElementById('homeScore').innerText = "0";
+            document.getElementById('awayScore').innerText = "0";
+            updateDisplay();
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>
