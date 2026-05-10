@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Subbuteo Timer Pro v6 - Match Edition</title>
+    <style>
+        :root {
+            --pitch-green: #1a4332;
+            --action-orange: #ff8500;
+            --timer-yellow: #f8e71c;
+        }
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background-color: var(--pitch-green);
+            background-image: repeating-linear-gradient(90deg, #1e4d39, #1e4d39 50px, #245a43 50px, #245a43 100px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        .club-name {
+            font-size: clamp(1.2rem, 4vw, 2.5rem);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 0px #000;
+            text-align: center;
+        }
+        .half-indicator {
+            font-size: 1.5rem;
+            color: var(--action-orange);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 20px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--action-orange);
+        }
+        .timer-container {
+            position: relative;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            border-radius: 20px;
+            border: 5px solid #444;
+            width: 90%;
+            max-width: 800px;
+            text-align: center;
+        }
+        .timer-display {
+            font-size: clamp(5rem, 25vw, 18rem);
+            font-weight: 900;
+            color: var(--timer-yellow);
+            line-height: 1;
+            font-family: 'Consolas', monospace;
+        }
+        .preparing { color: #ff4444; animation: blink 0.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 #000;
+        }
+        .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+        .btn-start { background: var(--action-orange); color: white; }
+        .btn-stop { background: #d00000; color: white; }
+        
+        .duration-select {
+            background: #333;
+            color: var(--timer-yellow);
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+
+        #endOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        #endOverlay h2 { font-size: 5rem; margin: 0; color: var(--action-orange); }
+        #endOverlay button { margin-top: 30px; padding: 20px 60px; font-size: 2rem; background: white; color: black; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; }
+
+        .credentials { margin-top: 20px; font-size: 0.8rem; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+    <div class="club-name" id="clubName" contenteditable="true">SUBBUTEO CLUB</div>
+    
+    <div class="half-indicator" id="halfLabel">1st HALF</div>
+
+    <div class="timer-container">
+        <div class="timer-display" id="display">15:00</div>
+        
+        <div class="controls">
+            <button class="btn btn-start" id="startBtn" onclick="initStartSequence()">KICK OFF</button>
+            <button class="btn btn-stop" id="stopBtn" onclick="stopTimer()" style="display:none;">PAUSE</button>
+            
+            <select class="duration-select" id="durationSetting" onchange="changeDuration()">
+                <option value="15">15 MIN</option>
+                <option value="12">12 MIN</option>
+                <option value="10">10 MIN</option>
+                <option value="5">5 MIN (ET)</option>
+                <option value="4">4 MIN (ET)</option>
+            </select>
+
+            <button class="btn" onclick="resetTimer()" style="background:#555; color:white;">RESET</button>
+        </div>
+    </div>
+
+    <div id="endOverlay">
+        <h2 id="overlayText">HALF TIME</h2>
+        <button id="overlayBtn" onclick="nextStep()">OK</button>
+    </div>
+
+    <div class="credentials">Developed by Dr. Chronis Fatouros | v6.0 Match Logic</div>
+
+    <script>
+        let countdown;
+        let selectedMins = 15;
+        let timeLeft = selectedMins * 60;
+        let isRunning = false;
+        let isPreparing = false;
+        let currentHalf = 1; // 1 = First Half, 2 = Second Half
+        
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function unlockAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        }
+
+        function playWhistle(times) {
+            unlockAudio();
+            for (let i = 0; i < times; i++) {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator();
+                    const vibrato = audioCtx.createOscillator();
+                    const vibratoGain = audioCtx.createGain();
+                    const mainGain = audioCtx.createGain();
+
+                    vibrato.frequency.value = 45;
+                    vibratoGain.gain.value = 50;
+                    osc.frequency.value = 1100;
+                    vibrato.connect(vibratoGain);
+                    vibratoGain.connect(osc.frequency);
+                    mainGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    mainGain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+                    mainGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+                    osc.connect(mainGain);
+                    mainGain.connect(audioCtx.destination);
+                    osc.start();
+                    vibrato.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                }, i * 600);
+            }
+        }
+
+        function playBeep() {
+            unlockAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function speak(text) {
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = text;
+            msg.lang = 'en-US';
+            window.speechSynthesis.speak(msg);
+        }
+
+        function updateDisplay() {
+            let mins = Math.floor(timeLeft / 60);
+            let secs = timeLeft % 60;
+            document.getElementById('display').innerText = 
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            document.getElementById('halfLabel').innerText = (currentHalf === 1) ? "1st HALF" : "2nd HALF";
+        }
+
+        function initStartSequence() {
+            unlockAudio();
+            if (isRunning || isPreparing) return;
+            isPreparing = true;
+            
+            let preCount = 3;
+            const display = document.getElementById('display');
+            document.getElementById('startBtn').style.display = 'none';
+            display.classList.add('preparing');
+
+            const prepInterval = setInterval(() => {
+                if (preCount > 0) {
+                    playBeep();
+                    preCount--;
+                } else {
+                    clearInterval(prepInterval);
+                    display.classList.remove('preparing');
+                    isPreparing = false;
+                    startTimer();
+                }
+            }, 1000);
+        }
+
+        function startTimer() {
+            isRunning = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            playWhistle(1);
+
+            countdown = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+
+                if (timeLeft === 120) speak("Two minutes remaining");
+                if (timeLeft === 60) speak("One minute remaining");
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    isRunning = false;
+                    playWhistle(3);
+                    showEndSequence();
+                }
+            }, 1000);
+        }
+
+        function showEndSequence() {
+            const overlay = document.getElementById('endOverlay');
+            const title = document.getElementById('overlayText');
+            const btn = document.getElementById('overlayBtn');
+
+            if (currentHalf === 1) {
+                title.innerText = "HALF TIME";
+                btn.innerText = "READY FOR 2nd HALF";
+            } else {
+                title.innerText = "FULL TIME";
+                btn.innerText = "NEW MATCH";
+            }
+            overlay.style.display = 'flex';
+        }
+
+        function nextStep() {
+            if (currentHalf === 1) {
+                currentHalf = 2;
+                timeLeft = selectedMins * 60;
+                updateDisplay();
+                document.getElementById('endOverlay').style.display = 'none';
+                document.getElementById('startBtn').style.display = 'inline-block';
+                document.getElementById('stopBtn').style.display = 'none';
+            } else {
+                resetTimer();
+                document.getElementById('endOverlay').style.display = 'none';
+            }
+        }
+
+        function stopTimer() {
+            clearInterval(countdown);
+            isRunning = false;
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+
+        function resetTimer() {
+            stopTimer();
+            isPreparing = false;
+            currentHalf = 1;
+            document.getElementById('display').classList.remove('preparing');
+            timeLeft = selectedMins * 60;
+            updateDisplay();
+            document.getElementById('endOverlay').style.display = 'none';
+        }
+
+        function changeDuration() {
+            selectedMins = parseInt(document.getElementById('durationSetting').value);
+            resetTimer();
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>
